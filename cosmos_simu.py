@@ -5,21 +5,21 @@ import random
 
 dt = 0.01
 
-xmin = 0
-xmax = 3
+xmin = -1
+xmax = 1
 ymin = -1
 ymax = 1
 
 fig = plt.figure() # initialise la figure
 line, = plt.plot([],[])
-plt.xlim(xmin, xmax)
-plt.ylim(ymin, ymax)
+plt.xlim(-10, 10)
+plt.ylim(-10, 10)
 
 CORNER = np.array([xmin, ymin])
 SPAN = np.array([(xmax - xmin), (ymax - ymin)])
 
 
-CST_G = 0.0000001
+CST_G = 0.000001
 # number of simulated steps
 NUM_STEPS = 10000
 
@@ -38,52 +38,50 @@ class Cosmos:
             acc_force += attractor.attractionTo(attracted)
         return acc_force
 
-    def build_matrices(self):
-        self.pos_matrix = np.stack([body.pos for body in self.body_list])
-        self.speed_matrix = np.stack([body.current_speed for body in self.body_list])
-        self.mass_matrix = np.array([body.mass for body in self.body_list])
+    def compile_matrices(self):
+        # self.body_list update will not be taken into account between two
+        # calls to compile_matrices
+        self.NUM_BODIES = len(self.body_list)
+        self.pos_matrix = np.stack([body.pos for body in self.body_list]).astype("float64")
+        self.speed_matrix = np.stack([body.current_speed for body in self.body_list]).astype("float64")
+        self.mass_matrix = np.array([body.mass for body in self.body_list], dtype="float64")
+        self.shape_2d = (self.NUM_BODIES, self.NUM_BODIES)
+        self.mass_matrix = self.mass_matrix.reshape((self.NUM_BODIES, 1))
+        self.mass_product_matrix = self.mass_matrix @ np.transpose(self.mass_matrix)
+        self.reduce_matrix = np.array([1.0] * self.NUM_BODIES, dtype="float64").reshape((self.NUM_BODIES, 1))
+        self.weighted_g_matrix = (self.mass_product_matrix * CST_G).astype("float64")
+        # value valid for float64, uses to generate an identity matrix with infinity
+        # as coefficient without multiplying 0 by infinity
+        NEAR_INFINITY = np.float64(2**600)
+        # diagnoal matrix with infinity as unique value (used to
+        # set to 0 the diagnoal of 1.0 / distance_matrix)
+        self.infinity_diag = NEAR_INFINITY * (NEAR_INFINITY * np.identity(self.NUM_BODIES))
 
     def update_pos_matrix(self, dt):
-        shape_2d = (len(self.body_list), len(self.body_list))
-        horyzontal_x = np.broadcast_to(self.pos_matrix[...,0], shape_2d)
-        horyzontal_y = np.broadcast_to(self.pos_matrix[...,1], shape_2d)
+        horyzontal_x = np.broadcast_to(self.pos_matrix[...,0], self.shape_2d)
+        horyzontal_y = np.broadcast_to(self.pos_matrix[...,1], self.shape_2d)
         vertical_x = np.transpose(horyzontal_x)
         vertical_y = np.transpose(horyzontal_y)
         diff_x = horyzontal_x - vertical_x
         diff_y = horyzontal_y - vertical_y
         square_distance_matrix = diff_x * diff_x + diff_y * diff_y
-        self.mass_matrix = self.mass_matrix.reshape((len(self.body_list), 1))
-        mass_product_matrix = self.mass_matrix @ np.transpose(self.mass_matrix)
-        # print("mass_product_matrix: ", mass_product_matrix)
         distance_matrix = np.sqrt(square_distance_matrix)
-        # print("distance_matrix: ", distance_matrix)
-        # valid for float64, uses to generate an identity matrix with infinity
-        # as coefficient without multiplying 0 by infinity
-        NEAR_INFINITY = 2**600
-        distance_matrix = distance_matrix + NEAR_INFINITY * (NEAR_INFINITY * np.identity(len(self.body_list)))
-        print("patched distance_matrix: ", distance_matrix)
-        inv_distance_matrix = 1.0 / (distance_matrix)
+        distance_matrix = distance_matrix + self.infinity_diag
+        inv_distance_matrix = np.float64(1.0) / (distance_matrix)
 
-        gravitational_force = inv_distance_matrix * inv_distance_matrix * mass_product_matrix * CST_G
-        #print("gravitational_force: ", gravitational_force)
+        gravitational_force = inv_distance_matrix * inv_distance_matrix * self.weighted_g_matrix
         unit_vector_x = diff_x / distance_matrix
         unit_vector_y = diff_y / distance_matrix
-        #print("unit_vector_x: ", unit_vector_x)
-        #print("unit_vector_y: ", unit_vector_y)
-        reduce_matrix = np.array([1.0] * len(self.body_list)).reshape((len(self.body_list), 1))
-        #print("reduce_matrix: ", reduce_matrix, reduce_matrix.dtype, reduce_matrix.shape)
         pre_mat_x = unit_vector_x * gravitational_force
-        #print("pre_mat_x: ", pre_mat_x, pre_mat_x.dtype, pre_mat_x.shape)
-        acc_x = (pre_mat_x.astype("float64")) @ reduce_matrix
-        acc_y = (unit_vector_y * gravitational_force).astype("float64") @ reduce_matrix
-        #print("acc_x: ", acc_x)
-        #print("acc_y: ", acc_y)
+        acc_x = pre_mat_x @ self.reduce_matrix
+        acc_y = (unit_vector_y * gravitational_force) @ self.reduce_matrix
+
+        acc_x /= self.mass_matrix
+        acc_y /= self.mass_matrix
         # speed matrix can be updated with dt and (acc_x, acc_y)
-        acc_matrix = np.transpose(np.stack([acc_x, acc_y])).reshape((len(self.body_list), 2))
-        #print("acc_matrix: ", acc_matrix)
+        acc_matrix = np.transpose(np.stack([acc_x, acc_y])).reshape((self.NUM_BODIES, 2))
         self.speed_matrix += dt * acc_matrix
         self.pos_matrix += dt * self.speed_matrix
-        print("pos_matrix: ", self.pos_matrix)
         return self.pos_matrix
 
     def compute_acceleration(self, body):
@@ -164,7 +162,7 @@ class Body(Point):
 # listing bodies
 body0 = Body(np.array([1.0, 0.5]), np.array([0, -0.5]), mass=2)
 body1 = Body(np.array([2.5, -0.0]), np.array([0, +0.5]), mass=2)
-body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=1000000)
+body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=1000000, linewidth=3)
 
 def random_point():
     normalized_rand_pt = np.random.rand(2)
@@ -172,8 +170,8 @@ def random_point():
 
 def random_body():
     init_pos = random_point()
-    init_speed = np.random.rand(2) - np.array([0.5, 0.5])
-    mass = 0.5 + random.random() * 10
+    init_speed = 5.0 * (np.random.rand(2) - np.array([0.5, 0.5]))
+    mass = 0.5 + random.random() * 1000
     body = Body(
         init_pos,
         init_speed,
@@ -185,14 +183,13 @@ universe = Cosmos()
 universe.add_body(body0)
 universe.add_body(body1)
 universe.add_body(body3)
-for i in range(10):
-    break
+for i in range(200):
     universe.add_body(random_body())
 
 # adding massive central body
 # universe.add_body(Body(CORNER + SPAN / 2, np.zeros(2), mass=1000000, linewidth=3))
 
-universe.build_matrices()
+universe.compile_matrices()
 print("pos_matrix: ", universe.pos_matrix)
 print("speed_matrix: ", universe.speed_matrix)
 print("mass_matrix: ", universe.mass_matrix)
