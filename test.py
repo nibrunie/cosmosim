@@ -2,15 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-k = 2*np.pi
-w = 2*np.pi
 dt = 0.01
 
 xmin = 0
 xmax = 3
-nbx = 100
-
-x = np.linspace(xmin, xmax, nbx)
 
 fig = plt.figure() # initialise la figure
 line, = plt.plot([],[])
@@ -18,7 +13,9 @@ plt.xlim(xmin, xmax)
 plt.ylim(-1,1)
 
 
-CST_G = 1.0
+CST_G = 0.0001
+# number of simulated steps
+NUM_STEPS = 10000
 
 
 class Cosmos:
@@ -49,7 +46,7 @@ class Cosmos:
             # position update
             body.update_pos(dt)
         return map(lambda b: b.update_trajectory(time), self.body_list)
-            
+
 
 class Trajectory:
     def __init__(self, nb_points, index=0):
@@ -79,7 +76,7 @@ class Point:
 
 
 class Body(Point):
-    def __init__(self, init_pos, init_speed, nb_points=1000, mass=1):
+    def __init__(self, init_pos, init_speed, nb_points=NUM_STEPS, mass=1):
         Point.__init__(self, init_pos)
         self.current_speed = init_speed
         self.trajectory = Trajectory(nb_points)
@@ -103,36 +100,27 @@ class Body(Point):
         return value * unit_vector
 
 
+# listing bodies
 body0 = Body(np.array([1.0, 0.5]), np.array([0, -0.5]), mass=2)
-body1 = Body(np.array([2.0, -0.75]), np.array([0, +0.65]))
-body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=100)
+body1 = Body(np.array([2.5, -0.0]), np.array([0, +0.5]), mass=2)
+body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=10000)
 
-
+# initializing cosmos
 universe = Cosmos()
 universe.add_body(body0)
 universe.add_body(body1)
-#BODY_LIST = [body0, body1]
+universe.add_body(body3)
 
-# fonction à définir quand blit=True
-# crée l'arrière de l'animation qui sera présent sur chaque image
+
 def init():
-    #line.set_data([],[])
-    #return line,
+    """ plot initialization """
     return [b.plot for b in universe.body_list]
 
 def animate(i):
-    #for b in BODY_LIST:
-    #    b.update_pos(dt)
-    # map is not resolved as it produces an unused iterator
-    # map((lambda b: b.update_pos(dt)), BODY_LIST)
-    #plot_list = map(lambda b: b.update_trajectory(i), BODY_LIST)
-    #t = i * dt
-    #y = (x + 3 * t) % 1.0
-    #line.set_data(x, y)
-    #return plot_list
+    """ plot i-th step """
     return universe.evolution(dt, i)
 
-ani = animation.FuncAnimation(fig, animate, init_func=init, frames=1000,
+ani = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_STEPS,
                               blit=True, interval=20, repeat=False)
 
 plt.show()
