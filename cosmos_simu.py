@@ -2,31 +2,24 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import random
+import argparse
+import math
 
-dt = 0.01
-
-xmin = -1
-xmax = 1
-ymin = -1
-ymax = 1
-
-fig = plt.figure() # initialise la figure
-line, = plt.plot([],[])
-plt.xlim(-10, 10)
-plt.ylim(-10, 10)
-
-CORNER = np.array([xmin, ymin])
-SPAN = np.array([(xmax - xmin), (ymax - ymin)])
+dt = 10000.0#0.01
 
 
-CST_G = 0.000001
+
+CST_G = 6.67408e-11 # m^3.kg^-1.s^-2
+
 # number of simulated steps
 NUM_STEPS = 10000
 
 
 class Cosmos:
-    def __init__(self):
+    def __init__(self, display_scale=np.array([1.0, 1.0])):
         self.body_list = []
+        # scale to be applied before display
+        self.display_scale = display_scale
 
     def add_body(self, new_body):
         self.body_list.append(new_body)
@@ -92,9 +85,10 @@ class Cosmos:
 
     def matrix_evolution(self, dt, time):
         pos_matrix = self.update_pos_matrix(dt)
+        print("pos_matrix: ", pos_matrix)
         for index, body in enumerate(self.body_list):
             body.pos = pos_matrix[index]
-        return map(lambda b: b.update_trajectory(time), self.body_list)
+        return map(lambda b: b.update_trajectory(time, self.display_scale), self.body_list)
 
     def evolution(self, dt, time):
         acc_map = {}
@@ -106,7 +100,23 @@ class Cosmos:
             body.update_speed(dt, acc_map[body])
             # position update
             body.update_pos(dt)
-        return map(lambda b: b.update_trajectory(time), self.body_list)
+        return map(lambda b: b.update_trajectory(time, self.display_scale), self.body_list)
+
+    def animation(self, fig):
+        # matplotlib animation
+        def init():
+            """ plot initialization """
+            return [b.plot for b in self.body_list]
+
+        def animate(i):
+            """ plot i-th step """
+            #return universe.evolution(dt, i)
+            return self.matrix_evolution(dt, i)
+
+        ani = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_STEPS,
+                                      blit=True, interval=20, repeat=False)
+
+        plt.show()
 
 
 class Trajectory:
@@ -148,8 +158,10 @@ class Body(Point):
         self.pos += dt * self.current_speed
     def update_speed(self, dt, acc):
         self.current_speed += dt * acc
-    def update_trajectory(self, time):
-        self.trajectory.add_point(self.pos)
+    def update_trajectory(self, time, display_scale):
+        scaled_point = self.pos * display_scale
+        print("scaled_point: ", scaled_point)
+        self.trajectory.add_point(scaled_point)
         x = self.trajectory.x[time-10:time]
         y = self.trajectory.y[time-10:time]
         self.plot.set_data(x, y)
@@ -160,51 +172,98 @@ class Body(Point):
         unit_vector = attracted.unit_vector_fromto(attractor)
         return value * unit_vector
 
+def simulate_solar_system():
+    xmin = -1
+    xmax = 1
+    ymin = -1
+    ymax = 1
 
-# listing bodies
-body0 = Body(np.array([1.0, 0.5]), np.array([0, -0.5]), mass=2)
-body1 = Body(np.array([2.5, -0.0]), np.array([0, +0.5]), mass=2)
-body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=1000000, linewidth=3)
+    fig = plt.figure() # initialise la figure
+    line, = plt.plot([],[])
+    plt.xlim(-10, 10)
+    plt.ylim(-10, 10)
 
-def random_point():
-    normalized_rand_pt = np.random.rand(2)
-    return normalized_rand_pt * SPAN + CORNER
+    EARTH_MASS = 5.972e24 # kg
+    SUN_MASS = 1.989e30 # kg
+    MOON_MASS = 7.34767309e22 # kg
+    ASTRO_UNIT = 1.49597e11 # m
 
-def random_body():
-    init_pos = random_point()
-    init_speed = 5.0 * (np.random.rand(2) - np.array([0.5, 0.5]))
-    mass = 0.5 + random.random() * 1000
-    body = Body(
-        init_pos,
-        init_speed,
-        mass=mass)
-    return body
+    
+    DISPLAY_SCALE = 3.0 / ASTRO_UNIT
+    DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
 
-# initializing cosmos
-universe = Cosmos()
-universe.add_body(body0)
-universe.add_body(body1)
-universe.add_body(body3)
-for i in range(200):
-    universe.add_body(random_body())
+    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10)
+    EARTH_SPEED = np.float64(2 * math.pi * ASTRO_UNIT) / (365.24 * 24.0 * 60.0 * 60.0) # m.s^-1
+    earth = Body(np.array([ASTRO_UNIT, 0.], dtype="float64"), np.array([0.,  EARTH_SPEED], dtype="float64"), mass=EARTH_MASS, linewidth=3)
 
-# adding massive central body
-# universe.add_body(Body(CORNER + SPAN / 2, np.zeros(2), mass=1000000, linewidth=3))
+    solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
+    solar_system.add_body(sun)
+    solar_system.add_body(earth)
 
-universe.compile_matrices()
+    solar_system.compile_matrices()
+
+    solar_system.animation(fig)
 
 
-def init():
-    """ plot initialization """
-    return [b.plot for b in universe.body_list]
+def demo():
+    """ dummy demo """
+    xmin = -1
+    xmax = 1
+    ymin = -1
+    ymax = 1
 
-def animate(i):
-    """ plot i-th step """
-    #return universe.evolution(dt, i)
-    return universe.matrix_evolution(dt, i)
+    fig = plt.figure() # initialise la figure
+    line, = plt.plot([],[])
+    plt.xlim(-10, 10)
+    plt.ylim(-10, 10)
 
-if True:
-    ani = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_STEPS,
-                                  blit=True, interval=20, repeat=False)
+    CORNER = np.array([xmin, ymin])
+    SPAN = np.array([(xmax - xmin), (ymax - ymin)])
 
-    plt.show()
+    # listing bodies
+    body0 = Body(np.array([1.0, 0.5]), np.array([0, -0.5]), mass=2)
+    body1 = Body(np.array([2.5, -0.0]), np.array([0, +0.5]), mass=2)
+    body3 = Body(np.array([1.5, 0.]), np.array([0, +0.0]), mass=1000000, linewidth=3)
+
+    def random_point():
+        normalized_rand_pt = np.random.rand(2)
+        return normalized_rand_pt * SPAN + CORNER
+
+    def random_body():
+        init_pos = random_point()
+        init_speed = 5.0 * (np.random.rand(2) - np.array([0.5, 0.5]))
+        mass = 0.5 + random.random() * 1000
+        body = Body(
+            init_pos,
+            init_speed,
+            mass=mass)
+        return body
+
+    # initializing cosmos
+    universe = Cosmos()
+    universe.add_body(body0)
+    universe.add_body(body1)
+    universe.add_body(body3)
+    for i in range(200):
+        universe.add_body(random_body())
+
+    # adding massive central body
+    # universe.add_body(Body(CORNER + SPAN / 2, np.zeros(2), mass=1000000, linewidth=3))
+
+    universe.compile_matrices()
+
+    universe.animation(fig)
+
+
+
+#for i in range(10000):
+#    universe.matrix_evolution(dt, i)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='cosmos simulator')
+    parser.add_argument("--visualize", action="store_const", default=False,
+                        const=True, help="enable graphical visualization")
+    parser.add_argument("--num-steps", default=10000,
+                        type=int, help="number of simulated steps")
+    args = parser.parse_args()
+
+    simulate_solar_system()
