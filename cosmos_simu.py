@@ -210,7 +210,7 @@ def simulate_solar_system():
     MOON_MASS = 7.34767309e22 # kg
     ASTRO_UNIT = 1.49597e11 # m
 
-    DISPLAY_SCALE = 1.5 / ASTRO_UNIT
+    DISPLAY_SCALE = 0.5 / ASTRO_UNIT
     DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
 
     sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10, color="orange", marker="o")
@@ -235,8 +235,14 @@ def simulate_solar_system():
     JUPITER_ORBITAL_PERIOD = 4331
     jupiter = Planet("jupiter", JUPITER_MASS, JUPITER_ORBITAL_RADIUS, orbital_period_days=JUPITER_ORBITAL_PERIOD, start_angle=0.0, linewidth=4, color="green")
 
+    SATURN_MASS = 5.68e26
+    SATURN_ORBITAL_RADIUS = 1.4335e12
+    SATURN_ORBITAL_PERIOD = 10747
+    saturn = Planet("saturn", SATURN_MASS, SATURN_ORBITAL_RADIUS, orbital_period_days=SATURN_ORBITAL_PERIOD, start_angle=0.0, linewidth=4, color="purple")
+
+
     solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
-    solar_system.add_bodies([sun, venus, earth, mars, jupiter])
+    solar_system.add_bodies([sun, venus, earth, mars, jupiter, saturn])
 
     solar_system.compile_matrices()
 
