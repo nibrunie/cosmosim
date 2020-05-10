@@ -165,11 +165,11 @@ class Point:
 
 class Body(Point):
     """ Astronomical body """
-    def __init__(self, init_pos, init_speed, nb_points=NUM_STEPS, mass=1, **plotargs):
+    def __init__(self, init_pos, init_speed, nb_points=NUM_STEPS, mass=1, plot_args={}):
         Point.__init__(self, init_pos)
         self.current_speed = init_speed
         self.trajectory = Trajectory(nb_points)
-        self.plot, = plt.plot([], [], **plotargs)
+        self.plot, = plt.plot([], [], **plot_args)
         self.mass = mass
 
     def update_pos(self, dt):
@@ -188,11 +188,11 @@ class Body(Point):
 
 class Planet(Body):
     """ Solar system planet """
-    def __init__(self, name, mass, radius, orbital_period_days=365.242, start_angle=0.0, **plot_args):
+    def __init__(self, name, mass, radius, orbital_period_days=365.242, start_angle=0.0, start_tilt=0.0, speed_factor=1.0, plot_args=None):
         init_pos = np.array([radius * math.cos(start_angle), radius * math.sin(start_angle)], dtype="float64")
-        speed_value = np.float64(2 * math.pi * radius / (orbital_period_days * 24.0 * 60.0 * 60.0))
-        init_speed = speed_value * np.array([math.cos(math.pi/2.0 + start_angle), math.sin(math.pi/2.0 + start_angle)], dtype="float64")
-        Body.__init__(self, init_pos, init_speed, mass=mass, **plot_args)
+        speed_value = speed_factor * np.float64(2 * math.pi * radius / (orbital_period_days * 24.0 * 60.0 * 60.0))
+        init_speed = speed_value * np.array([math.cos(math.pi/2.0 + start_angle + start_tilt), math.sin(math.pi/2.0 + start_angle + start_tilt)], dtype="float64")
+        Body.__init__(self, init_pos, init_speed, mass=mass, plot_args=plot_args)
         self.name = name
 
 def simulate_solar_system():
@@ -213,32 +213,32 @@ def simulate_solar_system():
     DISPLAY_SCALE = 0.5 / ASTRO_UNIT
     DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
 
-    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10, color="orange", marker="o")
+    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, plot_args={"linewidth": 10, "color":"orange", "marker":"o"})
     
     VENUS_MASS = 4.87e24 # kg
     VENUS_RADIUS = 1.08e11 # meters
     VENUS_ORBITAL_PERIOD = 224.7 # days
-    venus = Planet("venus", VENUS_MASS, VENUS_RADIUS, orbital_period_days=VENUS_ORBITAL_PERIOD, start_angle=math.pi/2.0, linewidth=3, color="grey")
+    venus = Planet("venus", VENUS_MASS, VENUS_RADIUS, orbital_period_days=VENUS_ORBITAL_PERIOD, start_angle=math.pi/2.0, plot_args={"linewidth":3, "color":"grey"})
 
 
     EARTH_MASS = 5.972e24 # kg
-    earth = Planet("earth", EARTH_MASS, ASTRO_UNIT, orbital_period_days=365.242, start_angle=math.pi, linewidth=3, color="blue")
+    earth = Planet("earth", EARTH_MASS, ASTRO_UNIT, orbital_period_days=365.242, start_angle=math.pi, plot_args={"linewidth":3, "color":"blue"})
 
     # https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html
     MARS_MASS = 6.39e23
     MARS_RADIUS = 2.2792e11 # semi-major axis
     MARS_YEAR = 687.973 # days, tropical orbit period
-    mars = Planet("mars", MARS_MASS, MARS_RADIUS, orbital_period_days=MARS_YEAR, start_angle=0.0, linewidth=3, color="red")
+    mars = Planet("mars", MARS_MASS, MARS_RADIUS, orbital_period_days=MARS_YEAR, start_angle=0.0, plot_args={"linewidth":3, "color":"red"})
 
     JUPITER_MASS = 1.898e27
     JUPITER_ORBITAL_RADIUS = 7.786e11
     JUPITER_ORBITAL_PERIOD = 4331
-    jupiter = Planet("jupiter", JUPITER_MASS, JUPITER_ORBITAL_RADIUS, orbital_period_days=JUPITER_ORBITAL_PERIOD, start_angle=0.0, linewidth=4, color="green")
+    jupiter = Planet("jupiter", JUPITER_MASS, JUPITER_ORBITAL_RADIUS, orbital_period_days=JUPITER_ORBITAL_PERIOD, start_angle=0.0, plot_args={"linewidth":4, "color":"green"})
 
     SATURN_MASS = 5.68e26
     SATURN_ORBITAL_RADIUS = 1.4335e12
     SATURN_ORBITAL_PERIOD = 10747
-    saturn = Planet("saturn", SATURN_MASS, SATURN_ORBITAL_RADIUS, orbital_period_days=SATURN_ORBITAL_PERIOD, start_angle=0.0, linewidth=4, color="purple")
+    saturn = Planet("saturn", SATURN_MASS, SATURN_ORBITAL_RADIUS, orbital_period_days=SATURN_ORBITAL_PERIOD, start_angle=0.0, plot_args={"linewidth":4, "color":"purple"})
 
 
     solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
