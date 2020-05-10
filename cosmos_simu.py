@@ -49,6 +49,8 @@ class Cosmos:
         self.mass_matrix = self.mass_matrix.reshape((self.NUM_BODIES, 1))
         self.mass_product_matrix = self.mass_matrix @ np.transpose(self.mass_matrix)
         self.reduce_matrix = np.array([1.0] * self.NUM_BODIES, dtype="float64").reshape((self.NUM_BODIES, 1))
+        self.inv_mass_matrix = np.float64(1.0) / self.mass_matrix
+
         self.weighted_g_matrix = (self.mass_product_matrix * CST_G).astype("float64")
         # value valid for float64, uses to generate an identity matrix with infinity
         # as coefficient without multiplying 0 by infinity
@@ -66,18 +68,18 @@ class Cosmos:
         diff_y = horyzontal_y - vertical_y
         square_distance_matrix = diff_x * diff_x + diff_y * diff_y
         distance_matrix = np.sqrt(square_distance_matrix)
+        #square_distance_matrix = square_distance_matrix + self.infinity_diag
         distance_matrix = distance_matrix + self.infinity_diag
         inv_distance_matrix = np.float64(1.0) / (distance_matrix)
 
         gravitational_force = inv_distance_matrix * inv_distance_matrix * self.weighted_g_matrix
-        unit_vector_x = diff_x / distance_matrix
-        unit_vector_y = diff_y / distance_matrix
-        pre_mat_x = unit_vector_x * gravitational_force
-        acc_x = pre_mat_x @ self.reduce_matrix
+        unit_vector_x = diff_x * inv_distance_matrix
+        unit_vector_y = diff_y * inv_distance_matrix
+        acc_x = (unit_vector_x * gravitational_force) @ self.reduce_matrix
         acc_y = (unit_vector_y * gravitational_force) @ self.reduce_matrix
 
-        acc_x /= self.mass_matrix
-        acc_y /= self.mass_matrix
+        acc_x *= self.inv_mass_matrix
+        acc_y *= self.inv_mass_matrix
         # speed matrix can be updated with dt and (acc_x, acc_y)
         acc_matrix = np.transpose(np.stack([acc_x, acc_y])).reshape((self.NUM_BODIES, 2))
         self.speed_matrix += dt * acc_matrix
@@ -190,10 +192,6 @@ for i in range(200):
 # universe.add_body(Body(CORNER + SPAN / 2, np.zeros(2), mass=1000000, linewidth=3))
 
 universe.compile_matrices()
-print("pos_matrix: ", universe.pos_matrix)
-print("speed_matrix: ", universe.speed_matrix)
-print("mass_matrix: ", universe.mass_matrix)
-#print("distance_matrix: ", universe.compute_distance_matrix())
 
 
 def init():
