@@ -244,6 +244,20 @@ def simulate_solar_system():
     solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
     solar_system.add_bodies([sun, venus, earth, mars, jupiter, saturn])
 
+    # adding asteroids
+    for i in range(200):
+        asteroid_mass = 1e9 + random.random() * 5e9
+        asteroid_orbital_radius = 6e11 + random.random() * 3e11
+        asteroid = Planet("asteroid_%d" % i,
+                          asteroid_mass,
+                          asteroid_orbital_radius,
+                          orbital_period_days=(2000),
+                          speed_factor=0.0, #(0.75 + random.random() * 0.5),
+                          start_angle=(math.pi * 2.0 * random.random()),
+                          start_tilt=(random.random() * math.pi / 8 - math.pi / 16),
+                          plot_args={"linewidth": 1, "color": "black"})
+        solar_system.add_body(asteroid)
+
     solar_system.compile_matrices()
 
     solar_system.animation(fig, nb_unit_steps=10)
