@@ -85,7 +85,6 @@ class Cosmos:
 
     def matrix_evolution(self, dt, time):
         pos_matrix = self.update_pos_matrix(dt)
-        print("pos_matrix: ", pos_matrix)
         for index, body in enumerate(self.body_list):
             body.pos = pos_matrix[index]
         return map(lambda b: b.update_trajectory(time, self.display_scale), self.body_list)
@@ -160,7 +159,6 @@ class Body(Point):
         self.current_speed += dt * acc
     def update_trajectory(self, time, display_scale):
         scaled_point = self.pos * display_scale
-        print("scaled_point: ", scaled_point)
         self.trajectory.add_point(scaled_point)
         x = self.trajectory.x[time-10:time]
         y = self.trajectory.y[time-10:time]
@@ -171,6 +169,16 @@ class Body(Point):
         value = CST_G * attracted.mass * attractor.mass / attractor.distance_to(attracted)**2
         unit_vector = attracted.unit_vector_fromto(attractor)
         return value * unit_vector
+
+ASTRO_UNIT = 1.49597e11 # m
+
+class Planet(Body):
+    def __init__(self, name, mass, radius, year_in_days=365.242, start_angle=0.0, **plot_args):
+        init_pos = np.array([radius * math.cos(start_angle), radius * math.sin(start_angle)], dtype="float64")
+        speed_value = np.float64(2 * math.pi * ASTRO_UNIT / (year_in_days * 24.0 * 60.0 * 60.0))
+        init_speed = speed_value * np.array([math.cos(math.pi/2.0 + start_angle), math.sin(math.pi/2.0 + start_angle)], dtype="float64")
+        Body.__init__(self, init_pos, init_speed, mass=mass, **plot_args)
+        self.name = name
 
 def simulate_solar_system():
     xmin = -1
@@ -186,19 +194,30 @@ def simulate_solar_system():
     EARTH_MASS = 5.972e24 # kg
     SUN_MASS = 1.989e30 # kg
     MOON_MASS = 7.34767309e22 # kg
-    ASTRO_UNIT = 1.49597e11 # m
 
-    
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html
+    MARS_MASS = 6.39e23
+    MARS_RADIUS = 2.2792e11 # semi-major axis
+    MARS_YEAR = 687.973 # days, tropical orbit period
+
+
     DISPLAY_SCALE = 3.0 / ASTRO_UNIT
     DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
 
-    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10)
-    EARTH_SPEED = np.float64(2 * math.pi * ASTRO_UNIT) / (365.24 * 24.0 * 60.0 * 60.0) # m.s^-1
-    earth = Body(np.array([ASTRO_UNIT, 0.], dtype="float64"), np.array([0.,  EARTH_SPEED], dtype="float64"), mass=EARTH_MASS, linewidth=3)
+    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10, color="orange", marker="o")
+    # EARTH_SPEED = np.float64(2 * math.pi * ASTRO_UNIT) / (365.242 * 24.0 * 60.0 * 60.0) # m.s^-1
+    # earth = Body(np.array([ASTRO_UNIT, 0.], dtype="float64"), np.array([0.,  EARTH_SPEED], dtype="float64"), mass=EARTH_MASS, linewidth=3, color="blue")
+    earth = Planet("earth", EARTH_MASS, ASTRO_UNIT, year_in_days=365.242, start_angle=math.pi, linewidth=3, color="blue")
+
+    MARS_SPEED = np.float64(2 * math.pi * MARS_RADIUS) / (MARS_YEAR * 24.0 * 60.0 * 60.0) # m.s^-1
+    mars = Body(np.array([MARS_RADIUS, 0.], dtype="float64"), np.array([0., MARS_SPEED], dtype="float64"), mass=MARS_MASS, linewidth=3, color="red")
 
     solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
     solar_system.add_body(sun)
     solar_system.add_body(earth)
+    solar_system.add_body(mars)
 
     solar_system.compile_matrices()
 
