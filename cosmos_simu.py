@@ -16,20 +16,32 @@ NUM_STEPS = 10000
 
 
 class Cosmos:
-    def __init__(self, display_scale=np.array([1.0, 1.0])):
+    def __init__(self, display_scale=np.array([1.0, 1.0]), gravitionnal_cst=CST_G):
         self.body_list = []
-        # scale to be applied before display
+        # scale to be applied before display to reduce simulated
+        # coords to window coords
         self.display_scale = display_scale
+        # local cosmos gravitionnal constant
+        self.gravitionnal_cst = gravitionnal_cst
 
     def add_body(self, new_body):
         self.body_list.append(new_body)
+
+    def add_bodies(self, bodies):
+        for body in bodies:
+            self.add_body(body)
 
     def compute_forces(self, attracted):
         acc_force = np.zeros(2)
         for attractor in self.body_list:
             if attractor is attracted: continue
-            acc_force += attractor.attractionTo(attracted)
+            acc_force += self.attractionTo(attractor, attracted)
         return acc_force
+
+    def attractionTo(self, attractor, attracted):
+        value = self.gravitionnal_cst * attracted.mass * attractor.mass / attractor.distance_to(attracted)**2
+        unit_vector = attracted.unit_vector_fromto(attractor)
+        return value * unit_vector
 
     def compile_matrices(self):
         # self.body_list update will not be taken into account between two
@@ -44,7 +56,7 @@ class Cosmos:
         self.reduce_matrix = np.array([1.0] * self.NUM_BODIES, dtype="float64").reshape((self.NUM_BODIES, 1))
         self.inv_mass_matrix = np.float64(1.0) / self.mass_matrix
 
-        self.weighted_g_matrix = (self.mass_product_matrix * CST_G).astype("float64")
+        self.weighted_g_matrix = (self.mass_product_matrix * self.gravitionnal_cst).astype("float64")
         # value valid for float64, uses to generate an identity matrix with infinity
         # as coefficient without multiplying 0 by infinity
         NEAR_INFINITY = np.float64(2**600)
@@ -83,8 +95,10 @@ class Cosmos:
         acceleration = self.compute_forces(body) / body.mass
         return acceleration
 
-    def matrix_evolution(self, dt, time):
-        pos_matrix = self.update_pos_matrix(dt)
+    def matrix_evolution(self, dt, time, nb_steps=1):
+        # simulate nb_steps before updating visual trajectory
+        for step_id in range(nb_steps):
+            pos_matrix = self.update_pos_matrix(dt)
         for index, body in enumerate(self.body_list):
             body.pos = pos_matrix[index]
         return map(lambda b: b.update_trajectory(time, self.display_scale), self.body_list)
@@ -101,7 +115,7 @@ class Cosmos:
             body.update_pos(dt)
         return map(lambda b: b.update_trajectory(time, self.display_scale), self.body_list)
 
-    def animation(self, fig):
+    def animation(self, fig, nb_unit_steps=1):
         # matplotlib animation
         def init():
             """ plot initialization """
@@ -110,7 +124,7 @@ class Cosmos:
         def animate(i):
             """ plot i-th step """
             #return universe.evolution(dt, i)
-            return self.matrix_evolution(dt, i)
+            return self.matrix_evolution(dt, i, nb_steps=nb_unit_steps)
 
         ani = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_STEPS,
                                       blit=True, interval=20, repeat=False)
@@ -119,6 +133,7 @@ class Cosmos:
 
 
 class Trajectory:
+    """ visualized trajectory """
     def __init__(self, nb_points, index=0):
         self.points = np.zeros((2, nb_points))
         self.index = index
@@ -137,15 +152,19 @@ class Trajectory:
 
 class Point:
     def __init__(self, pos):
+        # current 2D position
         self.pos = pos
 
     def distance_to(pt0, pt1):
+        """ compute distance between Point pt0 and Point pt1 """
         return np.linalg.norm(pt0.pos - pt1.pos)
     def unit_vector_fromto(pt0, pt1):
+        """ build a unit 2D vector from Point pt0 to Point pt1 """
         return (pt1.pos - pt0.pos) / pt0.distance_to(pt1)
 
 
 class Body(Point):
+    """ Astronomical body """
     def __init__(self, init_pos, init_speed, nb_points=NUM_STEPS, mass=1, **plotargs):
         Point.__init__(self, init_pos)
         self.current_speed = init_speed
@@ -165,63 +184,63 @@ class Body(Point):
         self.plot.set_data(x, y)
         return self.plot
 
-    def attractionTo(attractor, attracted):
-        value = CST_G * attracted.mass * attractor.mass / attractor.distance_to(attracted)**2
-        unit_vector = attracted.unit_vector_fromto(attractor)
-        return value * unit_vector
 
-ASTRO_UNIT = 1.49597e11 # m
 
 class Planet(Body):
-    def __init__(self, name, mass, radius, year_in_days=365.242, start_angle=0.0, **plot_args):
+    """ Solar system planet """
+    def __init__(self, name, mass, radius, orbital_period_days=365.242, start_angle=0.0, **plot_args):
         init_pos = np.array([radius * math.cos(start_angle), radius * math.sin(start_angle)], dtype="float64")
-        speed_value = np.float64(2 * math.pi * ASTRO_UNIT / (year_in_days * 24.0 * 60.0 * 60.0))
+        speed_value = np.float64(2 * math.pi * radius / (orbital_period_days * 24.0 * 60.0 * 60.0))
         init_speed = speed_value * np.array([math.cos(math.pi/2.0 + start_angle), math.sin(math.pi/2.0 + start_angle)], dtype="float64")
         Body.__init__(self, init_pos, init_speed, mass=mass, **plot_args)
         self.name = name
 
 def simulate_solar_system():
-    xmin = -1
-    xmax = 1
-    ymin = -1
-    ymax = 1
+    # Simulating solar system using data from
+    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+    xmin, xmax = -1, 2
+    ymin, ymax = -1, 1
 
     fig = plt.figure() # initialise la figure
     line, = plt.plot([],[])
     plt.xlim(-10, 10)
     plt.ylim(-10, 10)
 
-    EARTH_MASS = 5.972e24 # kg
     SUN_MASS = 1.989e30 # kg
     MOON_MASS = 7.34767309e22 # kg
+    ASTRO_UNIT = 1.49597e11 # m
 
-    # https://nssdc.gsfc.nasa.gov/planetary/factsheet/
+    DISPLAY_SCALE = 1.5 / ASTRO_UNIT
+    DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
+
+    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10, color="orange", marker="o")
+    
+    VENUS_MASS = 4.87e24 # kg
+    VENUS_RADIUS = 1.08e11 # meters
+    VENUS_ORBITAL_PERIOD = 224.7 # days
+    venus = Planet("venus", VENUS_MASS, VENUS_RADIUS, orbital_period_days=VENUS_ORBITAL_PERIOD, start_angle=math.pi/2.0, linewidth=3, color="grey")
+
+
+    EARTH_MASS = 5.972e24 # kg
+    earth = Planet("earth", EARTH_MASS, ASTRO_UNIT, orbital_period_days=365.242, start_angle=math.pi, linewidth=3, color="blue")
 
     # https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html
     MARS_MASS = 6.39e23
     MARS_RADIUS = 2.2792e11 # semi-major axis
     MARS_YEAR = 687.973 # days, tropical orbit period
+    mars = Planet("mars", MARS_MASS, MARS_RADIUS, orbital_period_days=MARS_YEAR, start_angle=0.0, linewidth=3, color="red")
 
-
-    DISPLAY_SCALE = 3.0 / ASTRO_UNIT
-    DISPLAY_SCALE_VECTOR = np.array([DISPLAY_SCALE, DISPLAY_SCALE], dtype="float64")
-
-    sun = Body(np.array([0., 0.], dtype="float64"), np.array([0., 0.], dtype="float64"), mass=SUN_MASS, linewidth=10, color="orange", marker="o")
-    # EARTH_SPEED = np.float64(2 * math.pi * ASTRO_UNIT) / (365.242 * 24.0 * 60.0 * 60.0) # m.s^-1
-    # earth = Body(np.array([ASTRO_UNIT, 0.], dtype="float64"), np.array([0.,  EARTH_SPEED], dtype="float64"), mass=EARTH_MASS, linewidth=3, color="blue")
-    earth = Planet("earth", EARTH_MASS, ASTRO_UNIT, year_in_days=365.242, start_angle=math.pi, linewidth=3, color="blue")
-
-    MARS_SPEED = np.float64(2 * math.pi * MARS_RADIUS) / (MARS_YEAR * 24.0 * 60.0 * 60.0) # m.s^-1
-    mars = Body(np.array([MARS_RADIUS, 0.], dtype="float64"), np.array([0., MARS_SPEED], dtype="float64"), mass=MARS_MASS, linewidth=3, color="red")
+    JUPITER_MASS = 1.898e27
+    JUPITER_ORBITAL_RADIUS = 7.786e11
+    JUPITER_ORBITAL_PERIOD = 4331
+    jupiter = Planet("jupiter", JUPITER_MASS, JUPITER_ORBITAL_RADIUS, orbital_period_days=JUPITER_ORBITAL_PERIOD, start_angle=0.0, linewidth=4, color="green")
 
     solar_system = Cosmos(display_scale=DISPLAY_SCALE_VECTOR)
-    solar_system.add_body(sun)
-    solar_system.add_body(earth)
-    solar_system.add_body(mars)
+    solar_system.add_bodies([sun, venus, earth, mars, jupiter])
 
     solar_system.compile_matrices()
 
-    solar_system.animation(fig)
+    solar_system.animation(fig, nb_unit_steps=10)
 
 
 def demo():
