@@ -124,7 +124,7 @@ class Cosmos:
         def animate(i):
             """ plot i-th step """
             #return universe.evolution(dt, i)
-            return self.matrix_evolution(dt, i, nb_steps=nb_unit_steps)
+            return list(self.matrix_evolution(dt, i, nb_steps=nb_unit_steps))
 
         ani = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_STEPS,
                                       blit=True, interval=20, repeat=False)
